@@ -48,14 +48,15 @@ class CustomTabWidget(QTabWidget):
         if self.count() == 0 or self.tabText(self.count() - 1) != '+':
             plus_tab = QWidget()
             self.addTab(plus_tab, '+')
+            self.tabBar().setFont(QFont("Arial", 10))
             self.tabBar().setTabButton(self.count() - 1, QTabBar.RightSide, None)
 
     def new_tab(self):
         editor = CodeEditor()
-        font = QFont("Consolas", 14)
+        font = QFont("Consolas", 16)
         editor.setFont(font)
         self.ide_instance.file_paths[editor] = None
-        self.add_editor_tab(editor, "Untitled")
+        self.add_editor_tab(editor, "*untitled")
 
     def close_tab(self, index):
         if self.tabText(index) == '+':
@@ -97,24 +98,30 @@ class PythonIDE(QMainWindow):
 
     def create_menu(self):
         menu = self.menuBar()
+        font=QFont("Arial",10)
         file_menu = menu.addMenu("File")
+        menu.setFont(font)
         run_menu = menu.addMenu("Run")
 
         new_action = QAction("New File", self)
+        new_action.setFont(font)
         new_action.triggered.connect(self.new_tab)
         file_menu.addAction(new_action)
 
         open_action = QAction("Open File", self)
+        open_action.setFont(font)
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
 
         save_action = QAction("Save File", self)
+        save_action.setFont(font)
         save_action.setShortcut(QKeySequence.Save)
         save_action.triggered.connect(self.save_file)
         file_menu.addAction(save_action)
 
         run_action = QAction("Run", self)
         run_action.setShortcut("Ctrl+R")
+        run_action.setFont(font)
         run_action.triggered.connect(self.run_current_code)
         run_menu.addAction(run_action)
 
@@ -135,8 +142,7 @@ class PythonIDE(QMainWindow):
     def open_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "Python Files (*.py)")
         if path:
-            # If only one tab and it's untitled, reuse it
-            if self.tabs.count() == 2 and self.tabs.tabText(0) == "Untitled":
+            if self.tabs.count() == 2 and self.tabs.tabText(0) == "*untitled":
                 editor = self.tabs.widget(0)
                 with open(path, "r") as file:
                     code = file.read()
