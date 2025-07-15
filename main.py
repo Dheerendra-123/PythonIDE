@@ -1,16 +1,240 @@
 import sys
 import os
+import queue
 from PyQt5.QtWidgets import (
     QMainWindow, QApplication, QFileDialog, QAction,
     QTabWidget, QTextEdit, QSplitter, QVBoxLayout, QWidget,
-    QMessageBox, QTabBar, QTreeView, QFileSystemModel,
+    QMessageBox,QTreeView, QFileSystemModel,
     QHBoxLayout, QLineEdit, QPushButton, QLabel, QFrame,
     QCheckBox, QShortcut, QMenu, QInputDialog, QToolButton
 )
 from PyQt5.QtCore import Qt, QDir
 from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument
 from editor import CodeEditor
-from runner import run_code
+from runner import run_code, run_command
+
+class TerminalWidget(QTextEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent_ide = parent
+        self.setReadOnly(False)
+        self.setStyleSheet("""
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                font-family: 'Consolas', 'Courier New', monospace;
+                border: none;
+                selection-background-color: #264f78;
+            }
+        """)
+        font = QFont("Consolas", 12)
+        self.setFont(font)
+        
+        self.input_queue = queue.Queue()
+        self.current_directory = os.getcwd()
+        self.command_history = []
+        self.history_index = -1
+        self.input_mode = False
+        self.prompt_position = 0
+        
+        self.clear_terminal()
+        self.show_prompt()
+        
+    def clear_terminal(self):
+        self.clear()
+        self.append_output("Python IDE Terminal", QColor("#569cd6"))
+        self.append_output(f"Working directory: {self.current_directory}", QColor("#6a9955"))
+        self.append_output("Type 'help' for available commands\n", QColor("#6a9955"))
+        
+    def show_prompt(self):
+        self.input_mode = True
+        prompt = f"{self.current_directory}> "
+        self.append_output(prompt, QColor("#569cd6"), newline=False)
+        self.prompt_position = self.textCursor().position()
+        
+    def append_output(self, text, color=QColor("#d4d4d4"), newline=True):
+        fmt = QTextCharFormat()
+        fmt.setForeground(color)
+        self.moveCursor(QTextCursor.End)
+        self.setCurrentCharFormat(fmt)
+        if newline:
+            self.insertPlainText(text + "\n")
+        else:
+            self.insertPlainText(text)
+        self.moveCursor(QTextCursor.End)
+        
+    def keyPressEvent(self, event):
+        if not self.input_mode:
+            return
+            
+        cursor = self.textCursor()
+        
+        if cursor.position() < self.prompt_position:
+            cursor.setPosition(self.prompt_position)
+            self.setTextCursor(cursor)
+            
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            self.handle_command()
+        elif event.key() == Qt.Key_Up:
+            self.navigate_history(-1)
+        elif event.key() == Qt.Key_Down:
+            self.navigate_history(1)
+        elif event.key() == Qt.Key_Backspace:
+            if cursor.position() > self.prompt_position:
+                super().keyPressEvent(event)
+        elif event.key() == Qt.Key_Left:
+            if cursor.position() > self.prompt_position:
+                super().keyPressEvent(event)
+        elif event.key() == Qt.Key_Home:
+            cursor.setPosition(self.prompt_position)
+            self.setTextCursor(cursor)
+        else:
+            super().keyPressEvent(event)
+            
+    def get_current_input(self):
+        cursor = self.textCursor()
+        cursor.setPosition(self.prompt_position)
+        cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+        return cursor.selectedText()
+        
+    def set_current_input(self, text):
+        cursor = self.textCursor()
+        cursor.setPosition(self.prompt_position)
+        cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+        cursor.insertText(text)
+        
+    def navigate_history(self, direction):
+        if not self.command_history:
+            return
+            
+        self.history_index += direction
+        self.history_index = max(-1, min(self.history_index, len(self.command_history) - 1))
+        
+        if self.history_index == -1:
+            self.set_current_input("")
+        else:
+            self.set_current_input(self.command_history[self.history_index])
+            
+    def handle_command(self):
+        command = self.get_current_input().strip()
+        self.append_output("")  # New line
+        
+        if not command:
+            self.show_prompt()
+            return
+            
+        if command not in self.command_history:
+            self.command_history.append(command)
+        self.history_index = -1
+        
+        if command == "clear":
+            self.clear_terminal()
+            self.show_prompt()
+            return
+        elif command == "help":
+            self.show_help()
+            self.show_prompt()
+            return
+        elif command.startswith("cd "):
+            self.change_directory(command[3:].strip())
+            self.show_prompt()
+            return
+        elif command == "pwd":
+            self.append_output(self.current_directory, QColor("#d4d4d4"))
+            self.show_prompt()
+            return
+        elif command == "ls" or command == "dir":
+            self.list_directory()
+            self.show_prompt()
+            return
+            
+        self.input_mode = False
+        self.run_system_command(command)
+        
+    def show_help(self):
+        help_text = """
+        Available commands:
+        clear    - Clear the terminal
+        cd <dir> - Change directory
+        pwd      - Print working directory
+        ls/dir   - List directory contents
+        help     - Show this help message
+        
+        You can also run any system command or Python file.
+        """
+        self.append_output(help_text, QColor("#6a9955"))
+        
+    def change_directory(self, path):
+        try:
+            if path == "..":
+                new_path = os.path.dirname(self.current_directory)
+            elif os.path.isabs(path):
+                new_path = path
+            else:
+                new_path = os.path.join(self.current_directory, path)
+                
+            if os.path.exists(new_path) and os.path.isdir(new_path):
+                self.current_directory = os.path.abspath(new_path)
+                self.append_output(f"Changed to: {self.current_directory}", QColor("#d4d4d4"))
+            else:
+                self.append_output(f"Directory not found: {path}", QColor("#f44747"))
+        except Exception as e:
+            self.append_output(f"Error: {str(e)}", QColor("#f44747"))
+            
+    def list_directory(self):
+        try:
+            items = os.listdir(self.current_directory)
+            for item in sorted(items):
+                item_path = os.path.join(self.current_directory, item)
+                if os.path.isdir(item_path):
+                    self.append_output(f"📁 {item}", QColor("#569cd6"))
+                else:
+                    self.append_output(f"📄 {item}", QColor("#d4d4d4"))
+        except Exception as e:
+            self.append_output(f"Error: {str(e)}", QColor("#f44747"))
+            
+    def run_system_command(self, command):
+        try:
+            result, return_code = run_command(command, self.current_directory)
+            
+            if return_code == 0:
+                self.append_output(result, QColor("#d4d4d4"))
+            else:
+                self.append_output(result, QColor("#f44747"))
+                
+        except Exception as e:
+            self.append_output(f"Error: {str(e)}", QColor("#f44747"))
+        finally:
+            self.input_mode = True
+            self.show_prompt()
+            
+    def run_python_code(self, code, file_path=None):
+        self.input_mode = False
+        
+        try:
+            display_name = file_path if file_path else "*untitled"
+            self.append_output(f"Running: {display_name}", QColor("#569cd6"))
+            self.append_output(f"Working directory: {self.current_directory}", QColor("#6a9955"))
+            self.append_output("-" * 50, QColor("#6a9955"))
+            
+            result, return_code, actual_path = run_code(code, file_path, self.input_queue)
+            
+            # Display output
+            if return_code == 0:
+                if result.strip():
+                    self.append_output(result, QColor("#d4d4d4"))
+                else:
+                    self.append_output("Program completed successfully", QColor("#4ec9b0"))
+            else:
+                self.append_output(result, QColor("#f44747"))
+                
+            self.append_output("-" * 50, QColor("#6a9955"))
+            
+        except Exception as e:
+            self.append_output(f"Error: {str(e)}", QColor("#f44747"))
+        finally:
+            self.input_mode = True
+            self.show_prompt()
 
 class FindReplaceWidget(QFrame):
     def __init__(self, parent=None):
@@ -67,16 +291,13 @@ class FindReplaceWidget(QFrame):
         header_layout.addStretch()
         
         close_btn = QPushButton("×")
-        close_btn.setFixedSize(18, 18)
+        close_btn.setFixedSize(23, 23)
         close_btn.clicked.connect(self.hide)
         close_btn.setStyleSheet("""
             QPushButton {
                 border: none;
                 font-weight: bold;
-                font-size: 12px;
-                background-color: transparent;
-            }
-            QPushButton:hover {
+                font-size: 14px;
                 background-color: #ff4444;
                 color: white;
             }
@@ -113,7 +334,6 @@ class FindReplaceWidget(QFrame):
         
         main_layout.addLayout(find_layout)
         
-
         replace_layout = QHBoxLayout()
         replace_layout.setSpacing(5)
         
@@ -145,7 +365,6 @@ class FindReplaceWidget(QFrame):
         self.show()
         self.find_input.setFocus()
         
-
         cursor = editor.textCursor()
         if cursor.hasSelection():
             self.find_input.setText(cursor.selectedText())
@@ -158,6 +377,7 @@ class FindReplaceWidget(QFrame):
         find_text = self.find_input.text()
         if not find_text:
             self.clear_highlights()
+            self.search_results = []
             return
             
         self.highlight_all_matches(find_text)
@@ -176,20 +396,20 @@ class FindReplaceWidget(QFrame):
         cursor = self.current_editor.textCursor()
         cursor.movePosition(QTextCursor.Start)
         
+        extra_selections = []
+        
         while True:
             cursor = self.current_editor.document().find(find_text, cursor, flags)
             if cursor.isNull():
                 break
-            self.search_results.append(cursor.position())
-            
-        extra_selections = []
-        for pos in self.search_results:
-            cursor = self.current_editor.textCursor()
-            cursor.setPosition(pos)
-            cursor.setPosition(pos + len(find_text), QTextCursor.KeepAnchor)
+
+            self.search_results.append({
+                'start': cursor.selectionStart(),
+                'end': cursor.selectionEnd()
+            })
             
             highlight_format = QTextCharFormat()
-            highlight_format.setBackground(QColor(255, 255, 0, 100))  # Yellow highlight
+            highlight_format.setBackground(QColor(255, 255, 0, 100)) 
             
             selection = QTextEdit.ExtraSelection()
             selection.cursor = cursor
@@ -197,6 +417,8 @@ class FindReplaceWidget(QFrame):
             extra_selections.append(selection)
             
         self.current_editor.setExtraSelections(extra_selections)
+        
+        self.current_result_index = -1
             
     def clear_highlights(self):
         if self.current_editor:
@@ -220,12 +442,11 @@ class FindReplaceWidget(QFrame):
         if not self.current_editor or index >= len(self.search_results):
             return
             
-        pos = self.search_results[index]
-        find_text = self.find_input.text()
+        result = self.search_results[index]
         
         cursor = self.current_editor.textCursor()
-        cursor.setPosition(pos)
-        cursor.setPosition(pos + len(find_text), QTextCursor.KeepAnchor)
+        cursor.setPosition(result['start'])
+        cursor.setPosition(result['end'], QTextCursor.KeepAnchor)
         self.current_editor.setTextCursor(cursor)
         self.current_editor.ensureCursorVisible()
         
@@ -236,7 +457,7 @@ class FindReplaceWidget(QFrame):
         cursor = self.current_editor.textCursor()
         if cursor.hasSelection():
             cursor.insertText(self.replace_input.text())
-            self.on_find_text_changed()  
+            self.on_find_text_changed() 
             
     def replace_all(self):
         if not self.current_editor:
@@ -258,6 +479,14 @@ class FindReplaceWidget(QFrame):
             
         self.current_editor.setPlainText(new_text)
         self.on_find_text_changed()  
+import os
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QTreeView, QFileSystemModel,
+    QToolButton, QPushButton, QInputDialog, QMessageBox, QFileDialog, QMenu
+)
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, QDir
+
 
 class FileExplorer(QWidget):
     def __init__(self, parent=None):
@@ -267,20 +496,19 @@ class FileExplorer(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
         header = QFrame()
         header.setStyleSheet("background-color: #f0f0f0; border-bottom: 1px solid #d0d0d0;")
         header.setFixedHeight(30)
-        
+
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(8, 5, 8, 5)
-        
-        title = QLabel("EXPLORER")
-        title.setFont(QFont("Arial", 9, QFont.Bold))
-        title.setStyleSheet("color: #666; border: none;")
-        header_layout.addWidget(title)
+
+        explorer_label = QLabel("EXPLORER")
+        explorer_label.setFont(QFont("Arial", 9, QFont.Bold))
+        explorer_label.setStyleSheet("color: #666; border: none;")
+        header_layout.addWidget(explorer_label)
         header_layout.addStretch()
-        
+
         add_file_btn = QToolButton()
         add_file_btn.setText("📄")
         add_file_btn.setToolTip("New File")
@@ -298,7 +526,6 @@ class FileExplorer(QWidget):
             }
         """)
         header_layout.addWidget(add_file_btn)
-        
 
         add_folder_btn = QToolButton()
         add_folder_btn.setText("📁")
@@ -317,33 +544,41 @@ class FileExplorer(QWidget):
             }
         """)
         header_layout.addWidget(add_folder_btn)
-        
+
         header.setLayout(header_layout)
         layout.addWidget(header)
-        
+
+        self.folder_name_label = QLabel()
+        self.folder_name_label.setFont(QFont("Arial", 9))
+        self.folder_name_label.setStyleSheet("color: #333; padding: 4px 8px; font-weight: bold;")
+        layout.addWidget(self.folder_name_label)
+
 
         self.tree = QTreeView()
         self.model = QFileSystemModel()
-        self.model.setRootPath(QDir.currentPath())
+        current_dir = QDir.currentPath()
+        self.model.setRootPath(current_dir)
         self.tree.setModel(self.model)
-        self.tree.setRootIndex(self.model.index(QDir.currentPath()))
-        
-        # Hide unnecessary columns
-        self.tree.hideColumn(1)  # Size
-        self.tree.hideColumn(2)  # Type
-        self.tree.hideColumn(3)  # Date Modified
+        self.tree.setRootIndex(self.model.index(current_dir))
+        self.update_folder_name(current_dir)  
+
+        self.tree.hideColumn(1) 
+        self.tree.hideColumn(2)  
+        self.tree.hideColumn(3)  
+        self.tree.header().hide()  
 
         self.tree.setStyleSheet("""
             QTreeView {
                 border: none;
                 background-color: #fafafa;
                 alternate-background-color: #f5f5f5;
-                font-size: 16px;
+                font-size: 18px;
             }
             QTreeView::item {
                 padding: 2px 6px;
                 border: none;
                 height: 20px;
+                padding-bottom: 4px;
             }
             QTreeView::item:selected {
                 background-color: none;
@@ -353,31 +588,27 @@ class FileExplorer(QWidget):
                 background-color: #e5e5e5;
             }
             QTreeView::branch:has-children:!has-siblings:closed,
-            QTreeView::branch:closed:has-children:has-siblings {
-                border-image: none;
-                image: url(none);
-            }
+            QTreeView::branch:closed:has-children:has-siblings,
             QTreeView::branch:open:has-children:!has-siblings,
             QTreeView::branch:open:has-children:has-siblings {
                 border-image: none;
                 image: url(none);
             }
         """)
-        
+
         self.tree.doubleClicked.connect(self.on_file_double_click)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
-        
         layout.addWidget(self.tree)
-        
+
 
         footer = QFrame()
         footer.setStyleSheet("background-color: #f0f0f0; border-top: 1px solid #d0d0d0;")
         footer.setFixedHeight(38)
-        
+
         footer_layout = QHBoxLayout()
         footer_layout.setContentsMargins(9, 6, 9, 6)
-        
+
         select_folder_btn = QPushButton("📁 Select Folder")
         select_folder_btn.setFixedHeight(24)
         select_folder_btn.clicked.connect(self.select_folder)
@@ -394,12 +625,18 @@ class FileExplorer(QWidget):
             }
         """)
         footer_layout.addWidget(select_folder_btn)
-        
+
         footer.setLayout(footer_layout)
         layout.addWidget(footer)
-        
+
         self.setLayout(layout)
-        
+
+    def update_folder_name(self, path):
+        folder_name = os.path.basename(path)
+        if not folder_name:
+            folder_name = path 
+        self.folder_name_label.setText(folder_name)
+
     def create_new_file(self):
         current_path = self.model.rootPath()
         name, ok = QInputDialog.getText(self, "New File", "Enter file name:")
@@ -413,7 +650,7 @@ class FileExplorer(QWidget):
                 self.parent_ide.open_file_by_path(file_path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not create file: {str(e)}")
-    
+
     def create_new_folder(self):
         current_path = self.model.rootPath()
         name, ok = QInputDialog.getText(self, "New Folder", "Enter folder name:")
@@ -423,314 +660,333 @@ class FileExplorer(QWidget):
                 os.makedirs(folder_path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not create folder: {str(e)}")
-    
+
     def show_context_menu(self, position):
         index = self.tree.indexAt(position)
         menu = QMenu()
-        
-        if index.isValid():
 
+        if index.isValid():
             file_path = self.model.filePath(index)
             if os.path.isfile(file_path):
                 open_action = menu.addAction("Open")
                 open_action.triggered.connect(lambda: self.parent_ide.open_file_by_path(file_path))
-            
+
             menu.addSeparator()
             delete_action = menu.addAction("Delete")
             delete_action.triggered.connect(lambda: self.delete_item(file_path))
-        
-        # General actions
+
         menu.addAction("New File", self.create_new_file)
         menu.addAction("New Folder", self.create_new_folder)
-        
+
         menu.exec_(self.tree.mapToGlobal(position))
-    
+
     def delete_item(self, path):
         reply = QMessageBox.question(self, "Delete", f"Are you sure you want to delete {os.path.basename(path)}?",
-                                   QMessageBox.Yes | QMessageBox.No)
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
                 if os.path.isfile(path):
                     os.remove(path)
                 else:
-                    os.rmdir(path)
+                    import shutil
+                    shutil.rmtree(path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not delete: {str(e)}")
-        
+
     def select_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Folder")
         if folder:
             self.model.setRootPath(folder)
             self.tree.setRootIndex(self.model.index(folder))
-            
+            self.update_folder_name(folder)
+
     def on_file_double_click(self, index):
         file_path = self.model.filePath(index)
-        if os.path.isfile(file_path) and file_path.endswith('.py'):
+        if os.path.isfile(file_path):
             self.parent_ide.open_file_by_path(file_path)
 
-class CustomTabBar(QTabBar):
-    def __init__(self, new_tab_callback):
-        super().__init__()
-        self.new_tab_callback = new_tab_callback
-        self.setTabsClosable(True)
 
-    def mouseReleaseEvent(self, event):
-        index = self.tabAt(event.pos())
-        if index != -1 and self.tabText(index) == '+':
-            self.new_tab_callback()
-        else:
-            super().mouseReleaseEvent(event)
-
-class CustomTabWidget(QTabWidget):
-    def __init__(self, ide_instance):
-        super().__init__()
-        self.ide_instance = ide_instance
-        self.tab_bar = CustomTabBar(self.new_tab)
-        self.setTabBar(self.tab_bar)
-        self.setTabsClosable(True)
-        self.setMovable(True)
-        self.tabCloseRequested.connect(self.close_tab)
-        self.add_plus_tab()
-
-    def add_editor_tab(self, editor, title):
-        if self.count() > 0 and self.tabText(self.count() - 1) == '+':
-            self.removeTab(self.count() - 1)
-
-        index = self.count()
-        self.insertTab(index, editor, title)
-        self.setCurrentIndex(index)
-        self.add_plus_tab()
-        return index
-
-    def add_plus_tab(self):
-        if self.count() == 0 or self.tabText(self.count() - 1) != '+':
-            plus_tab = QWidget()
-            self.addTab(plus_tab, '+')
-            self.tabBar().setFont(QFont("Arial", 10))
-            self.tabBar().setTabButton(self.count() - 1, QTabBar.RightSide, None)
-
-    def new_tab(self):
-        editor = CodeEditor()
-        font = QFont("Consolas", 16)
-        editor.setFont(font)
-        self.ide_instance.file_paths[editor] = None
-        self.add_editor_tab(editor, "*untitled")
-
-    def close_tab(self, index):
-        if self.tabText(index) == '+':
-            return
-        self.ide_instance.close_tab(index)
-        self.removeTab(index)
-        self.add_plus_tab()
 
 class PythonIDE(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("My Python IDE")
+        self.setWindowTitle("Python IDE")
         self.setGeometry(100, 100, 1200, 800)
-
-        self.main_splitter = QSplitter(Qt.Horizontal)
-
+        self.init_ui()
+        self.init_menu()
+        self.init_shortcuts()
+        
+        self.open_files = {} 
+        
+    def init_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)   
+        main_splitter = QSplitter(Qt.Horizontal)    
         self.file_explorer = FileExplorer(self)
-        self.main_splitter.addWidget(self.file_explorer)
-
-        editor_widget = QWidget()
+        self.file_explorer.setFixedWidth(250)
+        main_splitter.addWidget(self.file_explorer)
+        
+        right_splitter = QSplitter(Qt.Vertical)
+  
+        editor_container = QWidget()
         editor_layout = QVBoxLayout()
         editor_layout.setContentsMargins(0, 0, 0, 0)
         editor_layout.setSpacing(0)
-
+        
         self.find_replace_widget = FindReplaceWidget(self)
         editor_layout.addWidget(self.find_replace_widget)
         
-        self.editor_splitter = QSplitter(Qt.Vertical)
-        self.file_paths = {}
-        self.tabs = CustomTabWidget(self)
-
-        self.terminal = QTextEdit()
-        self.terminal.setReadOnly(True)
-        self.terminal.setStyleSheet("background-color: #111; color: #0f0; font-family: Consolas;")
-        font = QFont("Consolas", 14)
-        self.terminal.setFont(font)
-
-        self.editor_splitter.addWidget(self.tabs)
-        self.editor_splitter.addWidget(self.terminal)
-        self.editor_splitter.setStretchFactor(0, 3)
-        self.editor_splitter.setStretchFactor(1, 1)
-
-        editor_layout.addWidget(self.editor_splitter)
-        editor_widget.setLayout(editor_layout)
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        self.tab_widget.setMovable(True)
         
-        self.main_splitter.addWidget(editor_widget)
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #d0d0d0;
+                background-color: white;
+            }
+            QTabBar::tab {
+                background-color: #f0f0f0;
+                border: 1px solid #d0d0d0;
+                padding: 8px 16px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: white;
+                border-bottom: 1px solid white;
+            }
+            QTabBar::tab:hover {
+                background-color: #e0e0e0;
+            }
+            QTabBar::close-button {
+                image: url(resources/close.png);
+                subcontrol-position: right;
+                margin-left: 4px;
+                width: 14px;
+                height: 14px;
+            }
+        """)
         
-        self.main_splitter.setSizes([250, 950])
-        self.main_splitter.setCollapsible(0, True) 
+        editor_layout.addWidget(self.tab_widget)
+        editor_container.setLayout(editor_layout)
+        right_splitter.addWidget(editor_container)
         
-        self.setCentralWidget(self.main_splitter)
-
-        self.create_menu()
-        self.setup_shortcuts()
-        self.new_tab()
-
-    def create_menu(self):
-        menu = self.menuBar()
-        font = QFont("Arial", 10)
-        file_menu = menu.addMenu("File")
-        edit_menu = menu.addMenu("Edit")
-        view_menu = menu.addMenu("View")
-        menu.setFont(font)
-        run_menu = menu.addMenu("Run")
-
-        # File menu
-        new_action = QAction("New File", self)
-        new_action.setFont(font)
-        new_action.setShortcut(QKeySequence.New)
-        new_action.triggered.connect(self.new_tab)
+        self.terminal = TerminalWidget(self)
+        right_splitter.addWidget(self.terminal)
+        
+        right_splitter.setSizes([600, 200])
+        
+        main_splitter.addWidget(right_splitter)
+        main_splitter.setSizes([250, 950])
+        
+        main_layout.addWidget(main_splitter)
+        central_widget.setLayout(main_layout)
+        
+        self.create_new_tab()
+        
+    def init_menu(self):
+        menubar = self.menuBar()
+        
+        file_menu = menubar.addMenu('File')
+        
+        new_action = QAction('New', self)
+        new_action.setShortcut('Ctrl+N')
+        new_action.triggered.connect(self.create_new_tab)
         file_menu.addAction(new_action)
-
-        open_action = QAction("Open File", self)
-        open_action.setFont(font)
-        open_action.setShortcut(QKeySequence.Open)
+        
+        open_action = QAction('Open', self)
+        open_action.setShortcut('Ctrl+O')
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
-
-        save_action = QAction("Save File", self)
-        save_action.setFont(font)
-        save_action.setShortcut(QKeySequence.Save)
+        
+        save_action = QAction('Save', self)
+        save_action.setShortcut('Ctrl+S')
         save_action.triggered.connect(self.save_file)
         file_menu.addAction(save_action)
-
-        find_action = QAction("Find", self)
-        find_action.setShortcut("Ctrl+F")
-        find_action.setFont(font)
+        
+        save_as_action = QAction('Save As', self)
+        save_as_action.setShortcut('Ctrl+Shift+S')
+        save_as_action.triggered.connect(self.save_file_as)
+        file_menu.addAction(save_as_action)
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction('Exit', self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        edit_menu = menubar.addMenu('Edit')
+        
+        find_action = QAction('Find and Replace', self)
+        find_action.setShortcut('Ctrl+F')
         find_action.triggered.connect(self.show_find_replace)
         edit_menu.addAction(find_action)
-
-        replace_action = QAction("Replace", self)
-        replace_action.setFont(font)
-        replace_action.setShortcut("Ctrl+H")
-        replace_action.triggered.connect(self.show_find_replace)
-        edit_menu.addAction(replace_action)
-
-        toggle_explorer_action = QAction("Toggle Explorer", self)
-        toggle_explorer_action.setFont(font)
-        toggle_explorer_action.setShortcut("Ctrl+Shift+E")
-        toggle_explorer_action.triggered.connect(self.toggle_file_explorer)
-        view_menu.addAction(toggle_explorer_action)
-
-        run_action = QAction("Run", self)
-        run_action.setShortcut("Ctrl+R")
-        run_action.setFont(font)
-        run_action.triggered.connect(self.run_current_code)
+        
+        run_menu = menubar.addMenu('Run')
+        
+        run_action = QAction('Run', self)
+        run_action.setShortcut('Ctrl+R')
+        run_action.triggered.connect(self.run_current_file)
         run_menu.addAction(run_action)
-
-    def setup_shortcuts(self):  
-        self.escape_shortcut = QShortcut(QKeySequence("Escape"), self)
-        self.escape_shortcut.activated.connect(self.hide_find_replace)
-
-    def toggle_file_explorer(self):
-        if self.file_explorer.isVisible():
-            self.file_explorer.hide()
+        
+    def init_shortcuts(self):
+        QShortcut(QKeySequence("Ctrl+W"), self, self.close_current_tab)
+        QShortcut(QKeySequence("Ctrl+T"), self, self.create_new_tab)
+        QShortcut(QKeySequence("Escape"), self, self.hide_find_replace)
+        
+    def create_new_tab(self, file_path=None, content=""):
+        editor = CodeEditor()
+        editor.setPlainText(content)
+        
+        if file_path:
+            tab_name = os.path.basename(file_path)
+            self.open_files[file_path] = self.tab_widget.addTab(editor, tab_name)
+            editor.file_path = file_path
         else:
-            self.file_explorer.show()
+            tab_index = self.tab_widget.addTab(editor, "*untitled")
+            editor.file_path = None
+            
+        self.tab_widget.setCurrentWidget(editor)
+        editor.setFocus()
+        
+        editor.textChanged.connect(lambda: self.mark_tab_modified(editor))
+        
+        return editor
+        
+    def mark_tab_modified(self, editor):
+        tab_index = self.tab_widget.indexOf(editor)
+        if tab_index != -1:
+            current_text = self.tab_widget.tabText(tab_index)
+            if not current_text.endswith('*'):
+                self.tab_widget.setTabText(tab_index, current_text + '*')
+                
+    def remove_modified_indicator(self, editor):
+        tab_index = self.tab_widget.indexOf(editor)
+        if tab_index != -1:
+            current_text = self.tab_widget.tabText(tab_index)
+            if current_text.endswith('*'):
+                self.tab_widget.setTabText(tab_index, current_text[:-1])
+        
+    def open_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Open File", "", "Python Files (*.py);;All Files (*)"
+        )
+        if file_path:
+            self.open_file_by_path(file_path)
+            
+    def open_file_by_path(self, file_path):
+        if file_path in self.open_files:
+            tab_index = self.open_files[file_path]
+            self.tab_widget.setCurrentIndex(tab_index)
+            return
+            
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+                editor = self.create_new_tab(file_path, content)
+                self.remove_modified_indicator(editor)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not open file: {str(e)}")
+            
+    def save_file(self):
+        current_editor = self.tab_widget.currentWidget()
+        if current_editor:
+            if hasattr(current_editor, 'file_path') and current_editor.file_path:
+                self.save_file_to_path(current_editor, current_editor.file_path)
+            else:
+                self.save_file_as()
+                
+    def save_file_as(self):
+        current_editor = self.tab_widget.currentWidget()
+        if current_editor:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Save File", "", "Python Files (*.py);;All Files (*)"
+            )
+            if file_path:
+                self.save_file_to_path(current_editor, file_path)
+                
+    def save_file_to_path(self, editor, file_path):
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(editor.toPlainText())
+            
+            tab_index = self.tab_widget.indexOf(editor)
+            tab_name = os.path.basename(file_path)
+            self.tab_widget.setTabText(tab_index, tab_name)
+            
+            if hasattr(editor, 'file_path') and editor.file_path in self.open_files:
+                del self.open_files[editor.file_path]
+            
+            editor.file_path = file_path
+            self.open_files[file_path] = tab_index
+            
+            self.remove_modified_indicator(editor)
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not save file: {str(e)}")
+            
+    def close_tab(self, tab_index):
+        editor = self.tab_widget.widget(tab_index)
+        
+        tab_text = self.tab_widget.tabText(tab_index)
+        if tab_text.endswith('*'):
+            reply = QMessageBox.question(
+                self, "Unsaved Changes", 
+                f"'{tab_text[:-1]}' has unsaved changes. Do you want to save?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Save
+            )
+            
+            if reply == QMessageBox.Save:
+                self.save_file()
+            elif reply == QMessageBox.Cancel:
+                return
 
+        if hasattr(editor, 'file_path') and editor.file_path in self.open_files:
+            del self.open_files[editor.file_path]
+        
+        for file_path, index in self.open_files.items():
+            if index > tab_index:
+                self.open_files[file_path] = index - 1
+        
+        self.tab_widget.removeTab(tab_index)
+        
+        if self.tab_widget.count() == 0:
+            self.create_new_tab()
+            
+    def close_current_tab(self):
+        current_index = self.tab_widget.currentIndex()
+        if current_index != -1:
+            self.close_tab(current_index)
+            
     def show_find_replace(self):
-        current_editor = self.tabs.currentWidget()
-        if current_editor and hasattr(current_editor, 'toPlainText'):
+        current_editor = self.tab_widget.currentWidget()
+        if current_editor:
             self.find_replace_widget.show_for_editor(current_editor)
-
+            
     def hide_find_replace(self):
         self.find_replace_widget.hide()
+        
+    def run_current_file(self):
+        current_editor = self.tab_widget.currentWidget()
+        if current_editor:
+            code = current_editor.toPlainText()
+            file_path = getattr(current_editor, 'file_path', None)
+            self.terminal.run_python_code(code, file_path)
 
-    def new_tab(self):
-        self.tabs.new_tab()
 
-    def close_tab(self, index):
-        editor = self.tabs.widget(index)
-        reply = QMessageBox.question(
-            self, "Close Tab", "Are you sure you want to close this tab? Unsaved work will be lost.",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            self.tabs.removeTab(index)
-            if editor in self.file_paths:
-                del self.file_paths[editor]
-
-    def open_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open File", "", "Python Files (*.py)")
-        if path:
-            self.open_file_by_path(path)
-
-    def open_file_by_path(self, path):
-        for i in range(self.tabs.count()):
-            editor = self.tabs.widget(i)
-            if editor and self.file_paths.get(editor) == path:
-                self.tabs.setCurrentIndex(i)
-                return
-
-        if self.tabs.count() == 2 and self.tabs.tabText(0) == "*untitled":
-            editor = self.tabs.widget(0)
-            if not editor.toPlainText().strip(): 
-                with open(path, "r") as file:
-                    code = file.read()
-                editor.setPlainText(code)
-                self.tabs.setTabText(0, os.path.basename(path))
-                self.file_paths[editor] = path
-                return
-
-        with open(path, "r") as file:
-            code = file.read()
-        editor = CodeEditor()
-        font = QFont("Consolas", 14)
-        editor.setFont(font)
-        editor.setPlainText(code)
-        index = self.tabs.add_editor_tab(editor, os.path.basename(path))
-        self.file_paths[editor] = path
-
-    def save_file(self):
-        editor = self.tabs.currentWidget()
-        if editor:
-            current_path = self.file_paths.get(editor)
-            if not current_path:
-                path, _ = QFileDialog.getSaveFileName(self, "Save File", "", "Python Files (*.py)")
-                if not path:
-                    return
-                self.file_paths[editor] = path
-                index = self.tabs.indexOf(editor)
-                self.tabs.setTabText(index, os.path.basename(path))
-            else:
-                path = current_path
-
-            with open(path, "w") as file:
-                file.write(editor.toPlainText())
-
-    def append_terminal_output(self, text, color=QColor("#0f0")):
-        fmt = QTextCharFormat()
-        fmt.setForeground(color)
-        self.terminal.moveCursor(QTextCursor.End)
-        self.terminal.setCurrentCharFormat(fmt)
-        self.terminal.insertPlainText(text + "\n")
-        self.terminal.moveCursor(QTextCursor.End)
-
-    def run_current_code(self):
-        editor = self.tabs.currentWidget()
-        if editor:
-            self.terminal.clear()
-            QApplication.processEvents()
-
-            code = editor.toPlainText()
-            result = run_code(code)
-
-            file_path = self.file_paths.get(editor)
-            display_name = file_path if file_path else self.tabs.tabText(self.tabs.currentIndex())
-            self.append_terminal_output(f"Running file: {display_name}", QColor("cyan"))
-
-            if any(err in result.lower() for err in ["error", "traceback", "exception"]):
-                self.append_terminal_output(result, QColor("red"))
-            else:
-                self.append_terminal_output(result, QColor("#0f0"))
-
-if __name__ == '__main__':
+def main():
     app = QApplication(sys.argv)
-    window = PythonIDE()
-    window.show()
+    app.setStyle('Fusion')
+    ide = PythonIDE()
+    ide.show()
+    
     sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
