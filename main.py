@@ -600,14 +600,14 @@ class PythonIDE(QMainWindow):
         file_menu.addAction(save_action)
 
         find_action = QAction("Find", self)
+        find_action.setShortcut("Ctrl+F")
         find_action.setFont(font)
-        find_action.setShortcut(QKeySequence.Find)
         find_action.triggered.connect(self.show_find_replace)
         edit_menu.addAction(find_action)
 
         replace_action = QAction("Replace", self)
         replace_action.setFont(font)
-        replace_action.setShortcut(QKeySequence.Replace)
+        replace_action.setShortcut("Ctrl+H")
         replace_action.triggered.connect(self.show_find_replace)
         edit_menu.addAction(replace_action)
 
@@ -623,18 +623,9 @@ class PythonIDE(QMainWindow):
         run_action.triggered.connect(self.run_current_code)
         run_menu.addAction(run_action)
 
-    def setup_shortcuts(self):
-        self.find_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
-        self.find_shortcut.activated.connect(self.show_find_replace)
-        
-        self.replace_shortcut = QShortcut(QKeySequence("Ctrl+H"), self)
-        self.replace_shortcut.activated.connect(self.show_find_replace)
-        
+    def setup_shortcuts(self):  
         self.escape_shortcut = QShortcut(QKeySequence("Escape"), self)
         self.escape_shortcut.activated.connect(self.hide_find_replace)
-        
-        self.toggle_explorer_shortcut = QShortcut(QKeySequence("Ctrl+Shift+E"), self)
-        self.toggle_explorer_shortcut.activated.connect(self.toggle_file_explorer)
 
     def toggle_file_explorer(self):
         if self.file_explorer.isVisible():
