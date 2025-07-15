@@ -1,20 +1,26 @@
 # 🐍 Python IDE (Built with PyQt5)
 
-A modern, lightweight, and customizable Python IDE built from scratch using **Python** and **PyQt5**. It features multi-tab support, an integrated terminal, file explorer, and the ability to run Python scripts—all in one compact GUI.
+A modern, lightweight, and customizable Python IDE built entirely with **Python** and **PyQt5**. It features multi-tab support, an integrated terminal, syntax highlighting, auto bracket closing, and a file explorer — all packed into a sleek, minimal GUI.
 
 ---
 
 ## 🚀 Features
 
-- 📄 Multi-tab Editor (like VS Code or Notepad)
-- ➕ Tab Add Button with close support (like Microsoft Notepad)
-- 🧠 Syntax Highlighting (via `QPlainTextEdit` or `QSyntaxHighlighter`)
-- 💾 Open, Save, and Create New Files
-- ▶️ Run Python Code (with output in terminal)
-- 🖥️ Integrated Terminal with Colored Output
-- 📁 File Explorer with Click-to-Open
-- ⌨️ Keyboard Shortcuts (`Ctrl+S`, `Ctrl+R`,`Ctrl+F`,`Ctrl+H`,`Ctrl+Shift+E`)
-- 🧰 Resizable Terminal Area (Splitter)
+- 📄 **Multi-tab Editor** (like VS Code or Notepad)
+- ➕ **Tab Add/Close Support** (like Notepad)
+- 🧠 **Auto Bracket & Quote Closing** (`{}`, `""`, `''`, `()`, `[]`)
+- 🎨 **Syntax Highlighting** with `QSyntaxHighlighter`
+- 💾 **Open, Save, Create New Files**
+- ▶️ **Run Python Code** with **real terminal I/O**
+- 🖥️ **Integrated Terminal** for full **input/output (I/O) interaction**
+- 📁 **File Explorer** with click-to-open and context menu
+- ⌨️ **Keyboard Shortcuts**
+  - `Ctrl + N` — New Tab
+  - `Ctrl + S` — Save
+  - `Ctrl + R` — Run Code
+  - `Ctrl + F` — Find
+  - `Ctrl + H` — Replace
+- ↔️ **Resizable Terminal Area** via splitter
 
 ---
 
