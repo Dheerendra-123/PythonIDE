@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QShortcut, QMenu, QInputDialog, QToolButton
 )
 from PyQt5.QtCore import Qt, QDir
-from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument, QIcon
+from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument
 from editor import CodeEditor
 from runner import run_code
 
@@ -59,7 +59,6 @@ class FindReplaceWidget(QFrame):
         main_layout.setSpacing(3)
         main_layout.setContentsMargins(8, 5, 8, 5)
         
-        # Header with close button
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
         
@@ -86,7 +85,6 @@ class FindReplaceWidget(QFrame):
         
         main_layout.addLayout(header_layout)
         
-        # Find row
         find_layout = QHBoxLayout()
         find_layout.setSpacing(5)
         
@@ -115,7 +113,7 @@ class FindReplaceWidget(QFrame):
         
         main_layout.addLayout(find_layout)
         
-        # Replace row
+
         replace_layout = QHBoxLayout()
         replace_layout.setSpacing(5)
         
@@ -140,7 +138,6 @@ class FindReplaceWidget(QFrame):
         self.setFixedHeight(85)
         self.hide()
         
-        # Connect Enter key to find next
         self.find_input.returnPressed.connect(self.find_next)
         
     def show_for_editor(self, editor):
@@ -148,7 +145,7 @@ class FindReplaceWidget(QFrame):
         self.show()
         self.find_input.setFocus()
         
-        # Select current selection or all text
+
         cursor = editor.textCursor()
         if cursor.hasSelection():
             self.find_input.setText(cursor.selectedText())
@@ -169,15 +166,12 @@ class FindReplaceWidget(QFrame):
         if not self.current_editor:
             return
             
-        # Clear previous highlights
         self.clear_highlights()
-        
-        # Get search flags
+
         flags = QTextDocument.FindFlag(0)
         if self.match_case_cb.isChecked():
             flags |= QTextDocument.FindCaseSensitively
             
-        # Find all matches
         self.search_results = []
         cursor = self.current_editor.textCursor()
         cursor.movePosition(QTextCursor.Start)
@@ -188,18 +182,15 @@ class FindReplaceWidget(QFrame):
                 break
             self.search_results.append(cursor.position())
             
-        # Highlight all matches
         extra_selections = []
         for pos in self.search_results:
             cursor = self.current_editor.textCursor()
             cursor.setPosition(pos)
             cursor.setPosition(pos + len(find_text), QTextCursor.KeepAnchor)
             
-            # Create highlight format
             highlight_format = QTextCharFormat()
             highlight_format.setBackground(QColor(255, 255, 0, 100))  # Yellow highlight
             
-            # Apply highlight
             selection = QTextEdit.ExtraSelection()
             selection.cursor = cursor
             selection.format = highlight_format
@@ -245,7 +236,7 @@ class FindReplaceWidget(QFrame):
         cursor = self.current_editor.textCursor()
         if cursor.hasSelection():
             cursor.insertText(self.replace_input.text())
-            self.on_find_text_changed()  # Refresh highlights
+            self.on_find_text_changed()  
             
     def replace_all(self):
         if not self.current_editor:
@@ -257,20 +248,16 @@ class FindReplaceWidget(QFrame):
         if not find_text:
             return
             
-        # Get all text
         text = self.current_editor.toPlainText()
         
-        # Replace all occurrences
         if self.match_case_cb.isChecked():
             new_text = text.replace(find_text, replace_text)
         else:
-            # Case insensitive replace
             import re
             new_text = re.sub(re.escape(find_text), replace_text, text, flags=re.IGNORECASE)
             
-        # Set new text
         self.current_editor.setPlainText(new_text)
-        self.on_find_text_changed()  # Refresh highlights
+        self.on_find_text_changed()  
 
 class FileExplorer(QWidget):
     def __init__(self, parent=None):
@@ -280,8 +267,7 @@ class FileExplorer(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
-        # Header with title and buttons
+
         header = QFrame()
         header.setStyleSheet("background-color: #f0f0f0; border-bottom: 1px solid #d0d0d0;")
         header.setFixedHeight(30)
@@ -295,7 +281,6 @@ class FileExplorer(QWidget):
         header_layout.addWidget(title)
         header_layout.addStretch()
         
-        # Add file button
         add_file_btn = QToolButton()
         add_file_btn.setText("📄")
         add_file_btn.setToolTip("New File")
@@ -314,7 +299,7 @@ class FileExplorer(QWidget):
         """)
         header_layout.addWidget(add_file_btn)
         
-        # Add folder button
+
         add_folder_btn = QToolButton()
         add_folder_btn.setText("📁")
         add_folder_btn.setToolTip("New Folder")
@@ -336,7 +321,7 @@ class FileExplorer(QWidget):
         header.setLayout(header_layout)
         layout.addWidget(header)
         
-        # File tree
+
         self.tree = QTreeView()
         self.model = QFileSystemModel()
         self.model.setRootPath(QDir.currentPath())
@@ -347,8 +332,7 @@ class FileExplorer(QWidget):
         self.tree.hideColumn(1)  # Size
         self.tree.hideColumn(2)  # Type
         self.tree.hideColumn(3)  # Date Modified
-        
-        # Style the tree
+
         self.tree.setStyleSheet("""
             QTreeView {
                 border: none;
@@ -386,7 +370,7 @@ class FileExplorer(QWidget):
         
         layout.addWidget(self.tree)
         
-        # Footer with folder selection
+
         footer = QFrame()
         footer.setStyleSheet("background-color: #f0f0f0; border-top: 1px solid #d0d0d0;")
         footer.setFixedHeight(38)
@@ -445,7 +429,7 @@ class FileExplorer(QWidget):
         menu = QMenu()
         
         if index.isValid():
-            # File/folder specific actions
+
             file_path = self.model.filePath(index)
             if os.path.isfile(file_path):
                 open_action = menu.addAction("Open")
@@ -545,24 +529,19 @@ class PythonIDE(QMainWindow):
         self.setWindowTitle("My Python IDE")
         self.setGeometry(100, 100, 1200, 800)
 
-        # Main horizontal splitter
         self.main_splitter = QSplitter(Qt.Horizontal)
-        
-        # File explorer (left panel)
+
         self.file_explorer = FileExplorer(self)
         self.main_splitter.addWidget(self.file_explorer)
 
-        # Editor area (right panel)
         editor_widget = QWidget()
         editor_layout = QVBoxLayout()
         editor_layout.setContentsMargins(0, 0, 0, 0)
         editor_layout.setSpacing(0)
-        
-        # Find/Replace widget
+
         self.find_replace_widget = FindReplaceWidget(self)
         editor_layout.addWidget(self.find_replace_widget)
         
-        # Vertical splitter for editor and terminal
         self.editor_splitter = QSplitter(Qt.Vertical)
         self.file_paths = {}
         self.tabs = CustomTabWidget(self)
@@ -583,9 +562,8 @@ class PythonIDE(QMainWindow):
         
         self.main_splitter.addWidget(editor_widget)
         
-        # Set initial sizes: 250px for explorer, rest for editor
         self.main_splitter.setSizes([250, 950])
-        self.main_splitter.setCollapsible(0, True)  # Allow collapsing file explorer
+        self.main_splitter.setCollapsible(0, True) 
         
         self.setCentralWidget(self.main_splitter)
 
@@ -621,7 +599,6 @@ class PythonIDE(QMainWindow):
         save_action.triggered.connect(self.save_file)
         file_menu.addAction(save_action)
 
-        # Edit menu
         find_action = QAction("Find", self)
         find_action.setFont(font)
         find_action.setShortcut(QKeySequence.Find)
@@ -634,14 +611,12 @@ class PythonIDE(QMainWindow):
         replace_action.triggered.connect(self.show_find_replace)
         edit_menu.addAction(replace_action)
 
-        # View menu
         toggle_explorer_action = QAction("Toggle Explorer", self)
         toggle_explorer_action.setFont(font)
         toggle_explorer_action.setShortcut("Ctrl+Shift+E")
         toggle_explorer_action.triggered.connect(self.toggle_file_explorer)
         view_menu.addAction(toggle_explorer_action)
 
-        # Run menu
         run_action = QAction("Run", self)
         run_action.setShortcut("Ctrl+R")
         run_action.setFont(font)
@@ -649,19 +624,15 @@ class PythonIDE(QMainWindow):
         run_menu.addAction(run_action)
 
     def setup_shortcuts(self):
-        # Ctrl+F for find
         self.find_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self.find_shortcut.activated.connect(self.show_find_replace)
         
-        # Ctrl+H for replace
         self.replace_shortcut = QShortcut(QKeySequence("Ctrl+H"), self)
         self.replace_shortcut.activated.connect(self.show_find_replace)
         
-        # Escape to hide find/replace
         self.escape_shortcut = QShortcut(QKeySequence("Escape"), self)
         self.escape_shortcut.activated.connect(self.hide_find_replace)
         
-        # Ctrl+Shift+E to toggle file explorer
         self.toggle_explorer_shortcut = QShortcut(QKeySequence("Ctrl+Shift+E"), self)
         self.toggle_explorer_shortcut.activated.connect(self.toggle_file_explorer)
 
@@ -699,17 +670,15 @@ class PythonIDE(QMainWindow):
             self.open_file_by_path(path)
 
     def open_file_by_path(self, path):
-        # Check if file is already open
         for i in range(self.tabs.count()):
             editor = self.tabs.widget(i)
             if editor and self.file_paths.get(editor) == path:
                 self.tabs.setCurrentIndex(i)
                 return
 
-        # Open new file
         if self.tabs.count() == 2 and self.tabs.tabText(0) == "*untitled":
             editor = self.tabs.widget(0)
-            if not editor.toPlainText().strip():  # Only replace if empty
+            if not editor.toPlainText().strip(): 
                 with open(path, "r") as file:
                     code = file.read()
                 editor.setPlainText(code)
@@ -760,12 +729,10 @@ class PythonIDE(QMainWindow):
             code = editor.toPlainText()
             result = run_code(code)
 
-            # Show file path like VS Code, fallback to tab name
             file_path = self.file_paths.get(editor)
             display_name = file_path if file_path else self.tabs.tabText(self.tabs.currentIndex())
             self.append_terminal_output(f"Running file: {display_name}", QColor("cyan"))
 
-            # Display result
             if any(err in result.lower() for err in ["error", "traceback", "exception"]):
                 self.append_terminal_output(result, QColor("red"))
             else:
