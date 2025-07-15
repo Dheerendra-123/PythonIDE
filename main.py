@@ -979,7 +979,6 @@ class PythonIDE(QMainWindow):
             file_path = getattr(current_editor, 'file_path', None)
             self.terminal.run_python_code(code, file_path)
 
-
 def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')

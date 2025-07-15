@@ -15,8 +15,11 @@ def run_code(code, file_path=None, input_queue=None, output_callback=None):
     try:
 
         if file_path:
-            work_dir = os.path.dirname(os.path.abspath(file_path))
-            display_path = os.path.abspath(file_path)
+            abs_path = os.path.abspath(file_path)
+            if abs_path == os.path.abspath(sys.argv[0]):
+                return "⚠️ Cannot run the IDE itself.", 1, abs_path
+            work_dir = os.path.dirname(abs_path)
+            display_path = abs_path
         else:
             work_dir = os.getcwd()
             display_path = temp_file
@@ -110,3 +113,6 @@ def run_command(command, work_dir=None):
         return "Command timed out after 30 seconds", 1
     except Exception as e:
         return str(e), 1
+
+
+
