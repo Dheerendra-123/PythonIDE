@@ -1,2 +1,0 @@
-
-            QPushButton:hover {

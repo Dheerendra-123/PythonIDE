@@ -7,20 +7,25 @@ A modern, lightweight, and customizable Python IDE built entirely with **Python*
 ## 🚀 Features
 
 - 📄 **Multi-tab Editor** (like VS Code or Notepad)
-- ➕ **Tab Add/Close Support** (like Notepad)
+- ➕ **Add New Tab Button** next to tabs (just like Notepad)
 - 🧠 **Auto Bracket & Quote Closing** (`{}`, `""`, `''`, `()`, `[]`)
-- 🎨 **Syntax Highlighting** with `QSyntaxHighlighter`
-- 💾 **Open, Save, Create New Files**
-- ▶️ **Run Python Code** with **real terminal I/O**
-- 🖥️ **Integrated Terminal** for full **input/output (I/O) interaction**
-- 📁 **File Explorer** with click-to-open and context menu
+- 🎨 **Syntax Highlighting** with `QSyntaxHighlighter` for Python
+- 🔍 **Find and Replace**
+- 💾 **Open, Save, Save As, New File** functionality
+- ▶️ **Run Python Code** inside the IDE
+- 🖥️ **Integrated Terminal** with real-time input/output (supports `input()`)
+- 📁 **File Explorer** on the left panel (navigate & open files)
 - ⌨️ **Keyboard Shortcuts**
-  - `Ctrl + N` — New Tab
-  - `Ctrl + S` — Save
+  - `Ctrl + N` — New File
+  - `Ctrl + O` — Open File
+  - `Ctrl + S` — Save File
+  - `Ctrl + Shift + S` — Save As
+  - `Ctrl + W` — Close Tab
+  - `Ctrl + T` — New Tab
   - `Ctrl + R` — Run Code
   - `Ctrl + F` — Find
-  - `Ctrl + H` — Replace
-- ↔️ **Resizable Terminal Area** via splitter
+  - `Escape` — Hide Find Panel
+- ↔️ **Resizable Panels** via `QSplitter` (Editor / Terminal / File Tree)
 
 ---
 
@@ -37,7 +42,7 @@ A modern, lightweight, and customizable Python IDE built entirely with **Python*
 - Python 3.11+
 - PyQt5
 
-### 🔧 Install dependencies:
+### 🔧 Install Dependencies
 
 ```bash
 pip install PyQt5
