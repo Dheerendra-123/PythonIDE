@@ -43,7 +43,7 @@ class CodeEditor(QPlainTextEdit):
         self.completion_words = [
             'def', 'class', 'if', 'elif', 'else', 'for', 'while', 'try', 'except',
             'finally', 'with', 'import', 'from', 'return', 'yield', 'lambda',
-            'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'pass',
+            'and', 'or', 'not','input','range', 'in', 'is', 'True', 'False', 'None', 'pass',
             'break', 'continue', 'global', 'nonlocal', 'assert', 'del', 'raise'
         ]
         
