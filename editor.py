@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QPlainTextEdit, QWidget, QTextEdit
 from PyQt5.QtGui import QTextCursor, QTextFormat, QColor, QPainter, QFont
 from PyQt5.QtCore import Qt, QRect, QSize, pyqtSignal
 from highlighter import PythonHighlighter
+import keyword
 
 class LineNumberArea(QWidget):
     def __init__(self, editor):
@@ -40,13 +41,10 @@ class CodeEditor(QPlainTextEdit):
         }
         
         self.auto_complete_enabled = True
-        self.completion_words = [
-            'def', 'class', 'if', 'elif', 'else', 'for', 'while', 'try', 'except',
-            'finally', 'with', 'import', 'from', 'return', 'yield', 'lambda',
-            'and', 'or', 'not','input','range', 'in', 'is', 'True', 'False', 'None', 'pass',
-            'break', 'continue', 'global', 'nonlocal', 'assert', 'del', 'raise'
-        ]
+        self.completion_words = keyword.kwlist + ['print', 'range', 'input', 'set', 'list', 'int', 'str', 'float', 'dict', 'len', 'open', 'type', 'isinstance', 'super', 'dir']
         
+
+
         self.blockCountChanged.connect(self.update_line_number_area_width)
         self.updateRequest.connect(self.update_line_number_area)
         self.cursorPositionChanged.connect(self.highlight_current_line)

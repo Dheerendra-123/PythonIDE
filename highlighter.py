@@ -1,13 +1,9 @@
 from PyQt5.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
-
+import keyword
 class PythonHighlighter(QSyntaxHighlighter):
     def __init__(self, document):
         super().__init__(document)
-        self.keywords = [
-            'def', 'class', 'if', 'elif', 'else', 'while', 'for', 'import',
-            'from', 'return', 'try', 'except', 'finally', 'with', 'as', 'pass',
-            'break', 'continue', 'lambda', 'True', 'False', 'None', 'print'
-        ]
+        self.keywords = keyword.kwlist + ['print', 'range', 'input', 'set', 'list', 'int', 'str', 'float', 'dict', 'len', 'open', 'type', 'isinstance', 'super', 'dir']
 
     def highlightBlock(self, text):
         keyword_format = QTextCharFormat()

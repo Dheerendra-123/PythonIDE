@@ -341,6 +341,33 @@ class FindReplaceWidget(QFrame):
         self.on_find_text_changed()  
 
 
+class CustomTreeView(QTreeView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+    def drawBranches(self, painter, rect, index):
+        pass
+        
+    def drawRow(self, painter, option, index):
+        super().drawRow(painter, option, index)
+        
+        if self.model().hasChildren(index):
+            branch_rect = self.visualRect(index)
+            
+            arrow_x = branch_rect.left() - 20
+            arrow_y = branch_rect.top() + (branch_rect.height() // 2) - 6
+            
+            if self.isExpanded(index):
+                arrow = "v"
+            else:
+                arrow = ">"
+
+            painter.setPen(QColor("#666"))
+            font = QFont("Consolas", 11)
+            font.setBold(True) 
+            painter.setFont(font) 
+            painter.drawText(arrow_x, arrow_y + 11, arrow)
+
 class FileExplorer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -407,7 +434,7 @@ class FileExplorer(QWidget):
         layout.addWidget(self.folder_name_label)
 
 
-        self.tree = QTreeView()
+        self.tree = CustomTreeView()
         self.model = QFileSystemModel()
         current_dir = QDir.currentPath()
         self.model.setRootPath(current_dir)
@@ -445,7 +472,8 @@ class FileExplorer(QWidget):
             QTreeView::branch:open:has-children:!has-siblings,
             QTreeView::branch:open:has-children:has-siblings {
                 border-image: none;
-                image: url(none);
+                image: none;
+                background: transparent;
             }
         """)
 
@@ -535,7 +563,7 @@ class FileExplorer(QWidget):
 
     def delete_item(self, path):
         reply = QMessageBox.question(self, "Delete", f"Are you sure you want to delete {os.path.basename(path)}?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
                 if os.path.isfile(path):
@@ -622,12 +650,14 @@ class PythonIDE(QMainWindow):
         tab_bar_layout.setSpacing(0)
 
         self.tab_widget = QTabWidget()
-        self.tab_widget.setTabBar(CustomTabBar())  # 🔄 Use custom tab bar
+        self.tab_widget.setTabBar(CustomTabBar()) 
         self.tab_widget.setMovable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
 
         self.tab_bar = self.tab_widget.tabBar()
-        
+        font = QFont("Consolas", 9)  
+        self.tab_bar.setFont(font)
+                
         self.add_tab_button = QPushButton("+")
         self.add_tab_button.setFixedSize(40, 32)
         self.add_tab_button.clicked.connect(self.create_new_tab)
@@ -673,6 +703,7 @@ class PythonIDE(QMainWindow):
                 background-color: #f0f0f0;
                 border: 1px solid #d0d0d0;
                 padding: 8px 16px;
+                font-size: 16px; 
                 margin-right: 0px;
                 min-width: 80px;
             }}
