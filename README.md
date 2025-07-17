@@ -1,6 +1,6 @@
 # 🐍 Python IDE (Built with PyQt5)
 
-A modern, lightweight, and customizable Python IDE built entirely with **Python** and **PyQt5**. It features multi-tab support, an integrated terminal, syntax highlighting, auto bracket closing, and a file explorer — all packed into a sleek, minimal GUI.
+A modern, lightweight, and customizable Python IDE built entirely with **Python** and **PyQt5**. It features multi-tab support, an integrated terminal, syntax highlighting, auto bracket closing, intelligent autocompletion, and a file explorer — all packed into a sleek, minimal GUI.
 
 ---
 
@@ -14,6 +14,7 @@ A modern, lightweight, and customizable Python IDE built entirely with **Python*
 - 💾 **Open, Save, Save As, New File** functionality
 - ▶️ **Run Python Code** inside the IDE
 - 🖥️ **Integrated Terminal** with real-time input/output (supports `input()`)
+- 💡 **Jedi-powered Autocompletion** — Context-aware suggestions, variables, functions, and modules
 - 📁 **File Explorer** on the left panel (navigate & open files)
 - ⌨️ **Keyboard Shortcuts**
   - `Ctrl + N` — New File
@@ -41,8 +42,9 @@ A modern, lightweight, and customizable Python IDE built entirely with **Python*
 
 - Python 3.11+
 - PyQt5
+- Jedi
 
 ### 🔧 Install Dependencies
 
 ```bash
-pip install PyQt5
+pip install PyQt5 jedi
