@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout, QLineEdit, QPushButton, QLabel, QFrame,
     QCheckBox, QShortcut, QMenu, QInputDialog, QToolButton,QTextEdit,QStackedWidget,QTabBar
 )
-from PyQt5.QtCore import Qt, QDir, pyqtSignal, QObject,QProcess
+from PyQt5.QtCore import Qt, pyqtSignal, QObject,QProcess
 from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument,QFont
 from editor import CodeEditor
 
@@ -28,28 +28,29 @@ class TerminalWidget(QTextEdit):
         """)
         font = QFont("Consolas", 12)
         self.setFont(font)
-
+        
         self.command_buffer = ""
+        
         self.setUndoRedoEnabled(False)
-
+        
         self.emitter = OutputEmitter()
         self.emitter.output_signal.connect(self.append_output)
-
+        
         self.process = QProcess(self)
         self.process.setProgram("cmd.exe")
         self.process.setWorkingDirectory(os.getcwd())
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.read_output)
         self.process.start()
-
+    
     def append_output(self, text):
         self.moveCursor(QTextCursor.End)
         self.insertPlainText(text)
         self.moveCursor(QTextCursor.End)
-
+    
     def keyPressEvent(self, event):
         key = event.key()
-
+        
         if key in (Qt.Key_Backspace, Qt.Key_Delete):
             if self.command_buffer:
                 self.command_buffer = self.command_buffer[:-1]
@@ -58,41 +59,53 @@ class TerminalWidget(QTextEdit):
                 cursor.deletePreviousChar()
                 self.setTextCursor(cursor)
             return
-
+        
         if key == Qt.Key_Return or key == Qt.Key_Enter:
             command = self.command_buffer.strip()
             if command:
-                self.append_output("\n") 
+                self.append_output("\n")
+                
                 self.process.write((command + "\n").encode("utf-8"))
             self.command_buffer = ""
             return
-
+        
         text = event.text()
         if text:
             self.command_buffer += text
             self.insertPlainText(text)
-
+    
+    def change_working_directory(self, folder_path):
+        if folder_path and os.path.exists(folder_path):
+            drive = os.path.splitdrive(folder_path)[0]
+            if drive:
+                self.process.write(f"{drive}\n".encode("utf-8"))
+            
+            command = f'cd /d "{folder_path}"\n'
+            self.process.write(command.encode("utf-8"))
+            
+            self.process.setWorkingDirectory(folder_path)
+    
     def run_python_code(self, code, file_path=None):
         if file_path and os.path.exists(file_path):
             command = f'python -u "{file_path}"\n'
             self.process.write(command.encode('utf-8'))
         else:
             self.append_output("Cannot run unsaved code. Please save the file first.\n")
-
+    
     def read_output(self):
         output = self.process.readAllStandardOutput().data().decode("utf-8")
         self.emitter.output_signal.emit(output)
-
+    
     def closeEvent(self, event):
         if self.process.state() == QProcess.Running:
             self.process.terminate()
             self.process.waitForFinished(1000)
         super().closeEvent(event)
-    
+        
     def stop_process(self):
         if self.process and self.process.state() == QProcess.Running:
             self.process.terminate()
-            if not self.process.waitForFinished(1000): 
+            if not self.process.waitForFinished(1000):
                 self.process.kill()
 
 
@@ -373,12 +386,12 @@ class FileExplorer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_ide = parent
+        self.terminal_widget = None 
         
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
-        # Header
+
         header = QFrame()
         header.setStyleSheet("background-color: #f0f0f0; border-bottom: 1px solid #d0d0d0;")
         header.setFixedHeight(30)
@@ -408,6 +421,7 @@ class FileExplorer(QWidget):
                 border-radius: 2px;
             }
         """)
+        add_file_btn.setEnabled(False)  
         header_layout.addWidget(add_file_btn)
 
         add_folder_btn = QToolButton()
@@ -426,6 +440,7 @@ class FileExplorer(QWidget):
                 border-radius: 2px;
             }
         """)
+        add_folder_btn.setEnabled(False)  
         header_layout.addWidget(add_folder_btn)
 
         header.setLayout(header_layout)
@@ -437,11 +452,11 @@ class FileExplorer(QWidget):
         self.folder_name_label = QLabel()
         self.folder_name_label.setFont(QFont("Arial", 9))
         self.folder_name_label.setStyleSheet("color: #333; padding: 4px 8px; font-weight: bold;")
-        self.folder_name_label.hide() 
+        self.folder_name_label.hide()  
         layout.addWidget(self.folder_name_label)
 
         self.stacked_widget = QStackedWidget()
-        
+
         self.empty_view = QWidget()
         empty_layout = QVBoxLayout()
         empty_layout.setAlignment(Qt.AlignCenter)
@@ -451,8 +466,8 @@ class FileExplorer(QWidget):
         empty_label.setStyleSheet("color: #888; font-style: italic;")
         empty_label.setAlignment(Qt.AlignCenter)
         empty_layout.addWidget(empty_label)
-        
-        instruction_text = QLabel("Use 'Select Folder' to open a folder\nor create a new file/folder to start working")
+
+        instruction_text = QLabel("Use 'Select Folder' to open a folder\nto start working")
         instruction_text.setFont(QFont("Arial", 10))
         instruction_text.setStyleSheet("color: #aaa; margin-top: 8px;")
         instruction_text.setAlignment(Qt.AlignCenter)
@@ -465,7 +480,7 @@ class FileExplorer(QWidget):
         self.tree = CustomTreeView()
         self.model = QFileSystemModel()
         self.tree.setModel(self.model)
-
+        
         self.tree.hideColumn(1) 
         self.tree.hideColumn(2)  
         self.tree.hideColumn(3)  
@@ -543,6 +558,10 @@ class FileExplorer(QWidget):
         
         self.current_folder = None
 
+    def set_terminal_widget(self, terminal_widget):
+        """Set the terminal widget reference"""
+        self.terminal_widget = terminal_widget
+
     def update_folder_name(self, path):
         folder_name = os.path.basename(path)
         if not folder_name:
@@ -551,10 +570,9 @@ class FileExplorer(QWidget):
 
     def create_new_file(self):
         if not self.current_folder:
-            current_path = QDir.currentPath()
-        else:
-            current_path = self.model.rootPath()
+            return
             
+        current_path = self.model.rootPath()
         name, ok = QInputDialog.getText(self, "New File", "Enter file name:")
         if ok and name:
             if not name.endswith('.py'):
@@ -564,31 +582,23 @@ class FileExplorer(QWidget):
                 with open(file_path, 'w') as f:
                     f.write("")
                 self.parent_ide.open_file_by_path(file_path)
-                
-                if not self.current_folder:
-                    self.select_folder_programmatically(current_path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not create file: {str(e)}")
 
     def create_new_folder(self):
         if not self.current_folder:
-            current_path = QDir.currentPath()
-        else:
-            current_path = self.model.rootPath()
+            return
             
+        current_path = self.model.rootPath()
         name, ok = QInputDialog.getText(self, "New Folder", "Enter folder name:")
         if ok and name:
             folder_path = os.path.join(current_path, name)
             try:
                 os.makedirs(folder_path)
-
-                if not self.current_folder:
-                    self.select_folder_programmatically(current_path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not create folder: {str(e)}")
 
     def select_folder_programmatically(self, folder):
-        """Helper method to set folder without file dialog"""
         self.current_folder = folder
         self.model.setRootPath(folder)
         self.tree.setRootIndex(self.model.index(folder))
@@ -596,6 +606,12 @@ class FileExplorer(QWidget):
         
         self.stacked_widget.setCurrentWidget(self.tree)
         self.folder_name_label.show()
+        
+        self.add_file_btn.setEnabled(True)
+        self.add_folder_btn.setEnabled(True)
+        
+        if self.terminal_widget:
+            self.terminal_widget.change_working_directory(folder)
 
     def show_context_menu(self, position):
         if not self.current_folder:
@@ -677,6 +693,7 @@ class CustomTabBar(QTabBar):
 
 
 
+
 class PythonIDE(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -686,8 +703,9 @@ class PythonIDE(QMainWindow):
         self.init_menu()
         self.init_shortcuts()
         
-        self.open_files = {} 
+        self.open_files = {}
         
+        self.file_explorer.set_terminal_widget(self.terminal)
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)

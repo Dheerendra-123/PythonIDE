@@ -71,15 +71,17 @@ class PythonHighlighter(QSyntaxHighlighter):
             'number': self._create_format(QColor("#1E72E7")),
             'decorator': self._create_format(QColor("#F0CC02")),
             'operator': self._create_format(QColor("#C45F5F")),
-            'bracket_round': self._create_format(QColor("#B9BABB"), True),  # ()
-            'bracket_curly': self._create_format(QColor("#877903"), True),  # {}
-            'bracket_square': self._create_format(QColor("#700276"), True), # []
+            'bracket_round': self._create_format(QColor("#B9BABB"), True),
+            'bracket_curly': self._create_format(QColor("#877903"), True),
+            'bracket_square': self._create_format(QColor("#700276"), True),
             'class_name': self._create_format(QColor("#1DC5A3"), True),
             'function_name': self._create_format(QColor("#C8C839")),
             'self': self._create_format(QColor("#2FAAED")),
             'docstring': self._create_format(QColor("#62A443")),
             'f_string': self._create_format(QColor("#528839")),
         }
+
+        self._excluded_ranges = []
 
     def _create_format(self, color, bold=False, italic=False):
         fmt = QTextCharFormat()
@@ -92,16 +94,20 @@ class PythonHighlighter(QSyntaxHighlighter):
 
     def highlightBlock(self, text):
         self.setFormat(0, len(text), QTextCharFormat())
+        self._excluded_ranges = []
         self._highlight_strings(text)
         self._highlight_comments(text)
         self._highlight_numbers(text)
         self._highlight_decorators(text)
         self._highlight_keywords(text)
         self._highlight_operators(text)
-        self._highlight_brackets(text)  # ✅ NEW
+        self._highlight_brackets(text)
         self._highlight_class_names(text)
         self._highlight_function_names(text)
         self._highlight_self_cls(text)
+
+    def _is_excluded(self, start):
+        return any(a <= start < b for a, b in self._excluded_ranges)
 
     def _highlight_keywords(self, text):
         for keyword_list, fmt in [
@@ -114,7 +120,8 @@ class PythonHighlighter(QSyntaxHighlighter):
             for word in keyword_list:
                 pattern = rf'\b{re.escape(word)}\b'
                 for match in re.finditer(pattern, text):
-                    self.setFormat(match.start(), match.end() - match.start(), self.formats[fmt])
+                    if not self._is_excluded(match.start()):
+                        self.setFormat(match.start(), match.end() - match.start(), self.formats[fmt])
 
     def _highlight_strings(self, text):
         self.setCurrentBlockState(0)
@@ -127,9 +134,11 @@ class PythonHighlighter(QSyntaxHighlighter):
             if end == -1:
                 self.setFormat(0, len(text), self.formats['docstring'])
                 self.setCurrentBlockState(1)
+                self._excluded_ranges.append((0, len(text)))
                 return
             else:
                 self.setFormat(0, end + 3, self.formats['docstring'])
+                self._excluded_ranges.append((0, end + 3))
                 return
 
         for delim in [triple_single, triple_double]:
@@ -139,9 +148,11 @@ class PythonHighlighter(QSyntaxHighlighter):
                 if end == -1:
                     self.setFormat(start, len(text) - start, self.formats['docstring'])
                     self.setCurrentBlockState(1)
+                    self._excluded_ranges.append((start, len(text)))
                     return
                 else:
                     self.setFormat(start, end - start + 3, self.formats['docstring'])
+                    self._excluded_ranges.append((start, end + 3))
                     start = text.find(delim, end + 3)
 
         f_patterns = [
@@ -157,13 +168,17 @@ class PythonHighlighter(QSyntaxHighlighter):
         for p in f_patterns:
             for match in re.finditer(p, text):
                 self.setFormat(match.start(), match.end() - match.start(), self.formats['f_string'])
+                self._excluded_ranges.append((match.start(), match.end()))
+
         for p in patterns:
             for match in re.finditer(p, text):
                 self.setFormat(match.start(), match.end() - match.start(), self.formats['string'])
+                self._excluded_ranges.append((match.start(), match.end()))
 
     def _highlight_comments(self, text):
         for match in re.finditer(r'#.*', text):
             self.setFormat(match.start(), match.end() - match.start(), self.formats['comment'])
+            self._excluded_ranges.append((match.start(), match.end()))
 
     def _highlight_numbers(self, text):
         patterns = [
@@ -173,45 +188,46 @@ class PythonHighlighter(QSyntaxHighlighter):
         ]
         for p in patterns:
             for match in re.finditer(p, text):
-                self.setFormat(match.start(), match.end() - match.start(), self.formats['number'])
+                if not self._is_excluded(match.start()):
+                    self.setFormat(match.start(), match.end() - match.start(), self.formats['number'])
 
     def _highlight_decorators(self, text):
         for match in re.finditer(r'@\w+(\.\w+)*', text):
-            self.setFormat(match.start(), match.end() - match.start(), self.formats['decorator'])
+            if not self._is_excluded(match.start()):
+                self.setFormat(match.start(), match.end() - match.start(), self.formats['decorator'])
 
     def _highlight_operators(self, text):
         patterns = [r'\+\+|--|==|!=|<=|>=|<<|>>|\*\*|//|->', r'[+\-*/%=<>!&|^~]']
         for p in patterns:
             for match in re.finditer(p, text):
-                self.setFormat(match.start(), match.end() - match.start(), self.formats['operator'])
+                if not self._is_excluded(match.start()):
+                    self.setFormat(match.start(), match.end() - match.start(), self.formats['operator'])
 
     def _highlight_brackets(self, text):
         for match in re.finditer(r'[\[\]{}()]', text):
-            char = match.group()
-            start = match.start()
-
-            if char in '()':
-                fmt = self.formats['bracket_round']
-            elif char in '{}':
-                fmt = self.formats['bracket_curly']
-            elif char in '[]':
-                fmt = self.formats['bracket_square']
-            else:
+            if not self._is_excluded(match.start()):
+                char = match.group()
                 fmt = None
-
-            if fmt:
-                self.setFormat(start, 1, fmt)
-
+                if char in '()':
+                    fmt = self.formats['bracket_round']
+                elif char in '{}':
+                    fmt = self.formats['bracket_curly']
+                elif char in '[]':
+                    fmt = self.formats['bracket_square']
+                if fmt:
+                    self.setFormat(match.start(), 1, fmt)
 
     def _highlight_class_names(self, text):
         for match in re.finditer(r'\bclass\s+([A-Z][a-zA-Z0-9_]*)', text):
-            self.setFormat(match.start(1), match.end(1) - match.start(1), self.formats['class_name'])
+            if not self._is_excluded(match.start(1)):
+                self.setFormat(match.start(1), match.end(1) - match.start(1), self.formats['class_name'])
 
     def _highlight_function_names(self, text):
         for match in re.finditer(r'\bdef\s+([a-zA-Z_][a-zA-Z0-9_]*)', text):
-            self.setFormat(match.start(1), match.end(1) - match.start(1), self.formats['function_name'])
+            if not self._is_excluded(match.start(1)):
+                self.setFormat(match.start(1), match.end(1) - match.start(1), self.formats['function_name'])
 
     def _highlight_self_cls(self, text):
         for match in re.finditer(r'\b(self|cls)\b', text):
-            self.setFormat(match.start(), match.end() - match.start(), self.formats['self'])
-
+            if not self._is_excluded(match.start()):
+                self.setFormat(match.start(), match.end() - match.start(), self.formats['self'])
