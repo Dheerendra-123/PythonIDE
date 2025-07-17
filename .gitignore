@@ -1,2 +1,6 @@
 temp.py
-.gitignore
+.__pycache__/
+build/
+dist/
+*.spec
+*.pyc
