@@ -42,12 +42,12 @@ class TerminalWidget(QTextEdit):
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.read_output)
         self.process.start()
-    
+
     def append_output(self, text):
         self.moveCursor(QTextCursor.End)
         self.insertPlainText(text)
         self.moveCursor(QTextCursor.End)
-    
+
     def keyPressEvent(self, event):
         key = event.key()
         
@@ -64,8 +64,11 @@ class TerminalWidget(QTextEdit):
             command = self.command_buffer.strip()
             if command:
                 self.append_output("\n")
-                
-                self.process.write((command + "\n").encode("utf-8"))
+                if command.lower() in ['clear', 'cls']:
+                    self.clear_terminal()
+                else:
+                    self.append_output("\n")
+                    self.process.write((command + "\n").encode("utf-8"))
             self.command_buffer = ""
             return
         
@@ -73,29 +76,34 @@ class TerminalWidget(QTextEdit):
         if text:
             self.command_buffer += text
             self.insertPlainText(text)
-    
+
+    def clear_terminal(self):
+        self.clear()
+        self.command_buffer = ""
+        self.append_output(f"\n{os.getcwd()}> ")
+
     def change_working_directory(self, folder_path):
         if folder_path and os.path.exists(folder_path):
             drive = os.path.splitdrive(folder_path)[0]
             if drive:
                 self.process.write(f"{drive}\n".encode("utf-8"))
-            
+                
             command = f'cd /d "{folder_path}"\n'
             self.process.write(command.encode("utf-8"))
             
             self.process.setWorkingDirectory(folder_path)
-    
+
     def run_python_code(self, code, file_path=None):
         if file_path and os.path.exists(file_path):
             command = f'python -u "{file_path}"\n'
             self.process.write(command.encode('utf-8'))
         else:
             self.append_output("Cannot run unsaved code. Please save the file first.\n")
-    
+
     def read_output(self):
         output = self.process.readAllStandardOutput().data().decode("utf-8")
         self.emitter.output_signal.emit(output)
-    
+
     def closeEvent(self, event):
         if self.process.state() == QProcess.Running:
             self.process.terminate()

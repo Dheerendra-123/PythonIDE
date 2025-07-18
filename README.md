@@ -7,15 +7,27 @@ A modern, lightweight, and customizable Python IDE built entirely with **Python*
 ## 🚀 Features
 
 - 📄 **Multi-tab Editor** (like VS Code or Notepad)
+
 - ➕ **Add New Tab Button** next to tabs (just like Notepad)
+
 - 🧠 **Auto Bracket & Quote Closing** (`{}`, `""`, `''`, `()`, `[]`)
+
 - 🎨 **Syntax Highlighting** with `QSyntaxHighlighter` for Python
-- 🔍 **Find and Replace**
+
+- 🔢 **Line Numbers** for every editor tab
+
+- 🔍 **Find and Replace** with find next and previous
+
 - 💾 **Open, Save, Save As, New File** functionality
+
 - ▶️ **Run Python Code** inside the IDE
+
 - 🖥️ **Integrated Terminal** with real-time input/output (supports `input()`)
+
 - 💡 **Jedi-powered Autocompletion** — Context-aware suggestions, variables, functions, and modules
+
 - 📁 **File Explorer** on the left panel (navigate & open files)
+
 - ⌨️ **Keyboard Shortcuts**
   - `Ctrl + N` — New File
   - `Ctrl + O` — Open File
