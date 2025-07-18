@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QShortcut, QMenu, QInputDialog, QToolButton,QTextEdit,QStackedWidget,QTabBar
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject,QProcess
-from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument,QFont
+from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument,QFont,QIcon
 from editor import CodeEditor
 
 class OutputEmitter(QObject):
@@ -706,14 +706,15 @@ class PythonIDE(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Python IDE")
+        icon_path = os.path.join("resources", "icon.ico")
+        self.setWindowIcon(QIcon(icon_path))
         self.setGeometry(100, 100, 1200, 800)
         self.init_ui()
         self.init_menu()
-        self.init_shortcuts()
-        
+        self.init_shortcuts()  
         self.open_files = {}
-        
         self.file_explorer.set_terminal_widget(self.terminal)
+
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
