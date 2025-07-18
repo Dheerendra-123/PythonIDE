@@ -11,6 +11,16 @@ from PyQt5.QtCore import Qt, pyqtSignal, QObject,QProcess
 from PyQt5.QtGui import QKeySequence, QFont, QTextCharFormat, QTextCursor, QColor, QTextDocument,QFont,QIcon
 from editor import CodeEditor
 
+def get_icon_path():
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, "resources", "icon.ico")
+
+app = QApplication(sys.argv)
+app.setWindowIcon(QIcon(get_icon_path()))
+
 class OutputEmitter(QObject):
     output_signal = pyqtSignal(str)
 
@@ -706,8 +716,7 @@ class PythonIDE(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Python IDE")
-        icon_path = os.path.join("resources", "icon.ico")
-        self.setWindowIcon(QIcon(icon_path))
+        self.setWindowIcon(QIcon(get_icon_path())) 
         self.setGeometry(100, 100, 1200, 800)
         self.init_ui()
         self.init_menu()
