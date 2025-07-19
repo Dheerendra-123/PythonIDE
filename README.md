@@ -44,7 +44,11 @@ A modern, lightweight, and customizable Python IDE built entirely with **Python*
 
 ## 📸 Screenshots
 
-![Python IDE Screenshot](resources/ide.png)
+![Python IDE Screenshot](resources/ide1.png)
+
+![Python IDE Screenshot](resources/ide2.png)
+
+![Python IDE Screenshot](resources/ide3.png)
 
 ---
 
